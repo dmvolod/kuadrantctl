@@ -13,11 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package cmd
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"time"
 
@@ -36,7 +36,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -59,14 +58,6 @@ var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Applies a kuadrant manifest bundle, installing or reconfiguring kuadrant on a cluster",
 	Long:  "The install command applies kuadrant manifest bundle and applies it to a cluster.",
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Required to have controller-runtim config package read the kubeconfig arg
-		err := flag.CommandLine.Parse([]string{"-kubeconfig", installKubeConfig})
-		if err != nil {
-			return err
-		}
-		return nil
-	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return installRun(cmd, args)
 	},
@@ -107,12 +98,7 @@ func installRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	configuration, err := config.GetConfig()
-	if err != nil {
-		return err
-	}
-
-	k8sClient, err := client.New(configuration, client.Options{Scheme: scheme.Scheme})
+	k8sClient, _, err := utils.GetKubeClientAndNamespace(kubeConfig, kubeContext)
 	if err != nil {
 		return err
 	}
@@ -279,8 +265,5 @@ func createNamespace(k8sClient client.Client) error {
 func init() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true)))
 
-	// TODO(eastizle): add context flag to switch between kubeconfig contexts
-	// It would require using config.GetConfigWithContext(context string) (*rest.Config, error)
-	installCmd.PersistentFlags().StringVarP(&installKubeConfig, "kubeconfig", "", "", "Kubernetes configuration file")
 	rootCmd.AddCommand(installCmd)
 }

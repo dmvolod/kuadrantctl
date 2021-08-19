@@ -18,12 +18,16 @@ package utils
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -147,4 +151,42 @@ func CheckForDeploymentsReady(ns string, k8sClient client.Client, minRequired in
 	}
 
 	return true, nil
+}
+
+// GetKubeClientAndNamespace returns the client.Client and default namespace defined in the
+// kubeconfig at the specified path. If no path is provided, returns client for the default *rest.Config
+// and namespace
+func GetKubeClientAndNamespace(configPath, context string) (client.Client, string, error) {
+	var clientConfig clientcmd.ClientConfig
+	var apiConfig *clientcmdapi.Config
+	var err error
+	if configPath != "" {
+		apiConfig, err = clientcmd.LoadFromFile(configPath)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to load user provided kubeconfig: %v", err)
+		}
+	} else {
+		apiConfig, err = clientcmd.NewDefaultClientConfigLoadingRules().Load()
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get kubeconfig: %v", err)
+		}
+	}
+	if context == "" {
+		clientConfig = clientcmd.NewDefaultClientConfig(*apiConfig, &clientcmd.ConfigOverrides{})
+	} else {
+		clientConfig = clientcmd.NewNonInteractiveClientConfig(*apiConfig, context, &clientcmd.ConfigOverrides{}, nil)
+	}
+	kubeconfig, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, "", err
+	}
+	namespace, _, err := clientConfig.Namespace()
+	if err != nil {
+		return nil, "", err
+	}
+	cl, err := client.New(kubeconfig, client.Options{Scheme: scheme.Scheme})
+	if err != nil {
+		return nil, "", err
+	}
+	return cl, namespace, nil
 }

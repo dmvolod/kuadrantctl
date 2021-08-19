@@ -1,7 +1,22 @@
+/*
+Copyright 2021 Red Hat, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cmd
 
 import (
-	"flag"
 	"reflect"
 
 	"github.com/spf13/cobra"
@@ -11,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -24,16 +38,8 @@ import (
 // unInstallCmd represents the uninstall command
 var unInstallCmd = &cobra.Command{
 	Use:   "uninstall",
-	Short: "Uninstalling kuadrant from the cluster",
-	Long:  "The uninstall command removes kuadrant manifest bundle from the cluster.",
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Required to have controller-runtim config package read the kubeconfig arg
-		err := flag.CommandLine.Parse([]string{"-kubeconfig", installKubeConfig})
-		if err != nil {
-			return err
-		}
-		return nil
-	},
+	Short: "Uninstalling kuadrant deployment from the cluster",
+	Long:  "The uninstall command removes kuadrant manifest bundle deployment from the cluster.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return unInstallRun(cmd, args)
 	},
@@ -45,12 +51,7 @@ func unInstallRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	configuration, err := config.GetConfig()
-	if err != nil {
-		return err
-	}
-
-	k8sClient, err := client.New(configuration, client.Options{Scheme: scheme.Scheme})
+	k8sClient, _, err := utils.GetKubeClientAndNamespace(kubeConfig, kubeContext)
 	if err != nil {
 		return err
 	}
@@ -140,8 +141,5 @@ func delete(k8sClient client.Client) utils.DecodeCallback {
 func init() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true)))
 
-	// TODO(eastizle): add context flag to switch between kubeconfig contexts
-	// It would require using config.GetConfigWithContext(context string) (*rest.Config, error)
-	unInstallCmd.PersistentFlags().StringVarP(&installKubeConfig, "kubeconfig", "", "", "Kubernetes configuration file")
 	rootCmd.AddCommand(unInstallCmd)
 }

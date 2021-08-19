@@ -54,6 +54,9 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
+	rootCmd.Flags().StringVarP(&kubeConfig, "kubeconfig", "", "", "Kubernetes configuration file")
+	rootCmd.Flags().StringVarP(&kubeContext, "context", "", "", "Kubernetes configuration context")
+	rootCmd.Flags().StringVarP(&apiNamespace, "namespace", "n", "", "Cluster namespace")
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.kuadrantctl.yaml)")
 }
 

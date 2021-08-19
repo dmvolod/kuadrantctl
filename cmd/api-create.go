@@ -13,30 +13,30 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package cmd
 
 import (
 	"context"
-	"flag"
 
 	kctlrv1beta1 "github.com/kuadrant/kuadrant-controller/apis/networking/v1beta1"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/kuadrant/kuadrantctl/pkg/kuadrantapi"
+	"github.com/kuadrant/kuadrantctl/pkg/utils"
 )
 
 var (
-	kubeConfig         string
-	apiCreateNamespace string
+	kubeConfig   string
+	kubeContext  string
+	apiNamespace string
 )
 
-// createCmd represents the create command
-var createCmd = &cobra.Command{
+// apiCreateCmd represents the create API command
+var apiCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Applies a Kuadrant API, installing on a cluster",
 	Long: `The create command generates a Kuadrant API manifest and applies it to a cluster.
@@ -46,31 +46,18 @@ kuadrantctl api create oas3-resource -n ns (/path/to/your/spec/file.[json|yaml|y
     http[s]://domain/resource/path.[json|yaml|yml] OR '-')
 	`,
 	Args: cobra.MinimumNArgs(1),
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Required to have controller-runtim config package read the kubeconfig arg
-		err := flag.CommandLine.Parse([]string{"-kubeconfig", kubeConfig})
-		if err != nil {
-			return err
-		}
-		return nil
-	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return apiCreateCmd(cmd, args)
+		return createAPI(cmd, args)
 	},
 }
 
-func apiCreateCmd(cmd *cobra.Command, args []string) error {
+func createAPI(cmd *cobra.Command, args []string) error {
 	err := kctlrv1beta1.AddToScheme(scheme.Scheme)
 	if err != nil {
 		return err
 	}
 
-	configuration, err := config.GetConfig()
-	if err != nil {
-		return err
-	}
-
-	cl, err := client.New(configuration, client.Options{Scheme: scheme.Scheme})
+	cl, apiNamespace, err := utils.GetKubeClientAndNamespace(kubeConfig, kubeContext)
 	if err != nil {
 		return err
 	}
@@ -81,11 +68,11 @@ func apiCreateCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	api.SetNamespace(apiCreateNamespace)
+	api.SetNamespace(apiNamespace)
 
 	err = cl.Create(context.Background(), api)
 	// TODO(eastizle): add type: kind and apiversion
-	logf.Log.Info("Created API object", "namespace", apiCreateNamespace, "name", api.GetName(), "error", err)
+	logf.Log.Info("Created API object", "namespace", apiNamespace, "name", api.GetName(), "error", err)
 	if err != nil {
 		return err
 	}
@@ -96,10 +83,5 @@ func apiCreateCmd(cmd *cobra.Command, args []string) error {
 func init() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true)))
 
-	// TODO(eastizle): add context flag to switch between kubeconfig contexts
-	// It would require using config.GetConfigWithContext(context string) (*rest.Config, error)
-	createCmd.PersistentFlags().StringVarP(&kubeConfig, "kubeconfig", "", "", "Kubernetes configuration file")
-	createCmd.Flags().StringVarP(&apiCreateNamespace, "namespace", "n", "", "Cluster namespace (required)")
-	createCmd.MarkFlagRequired("namespace")
-	apiCmd.AddCommand(createCmd)
+	apiCmd.AddCommand(apiCreateCmd)
 }
